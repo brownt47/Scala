@@ -9,42 +9,101 @@ package com.sundogsoftware.spark
 
 import org.apache.spark._
 import org.apache.log4j._
+import org.sparkproject.dmg.pmml.False
 
-/** Count up how many of each word occurs in a book, using regular expressions and sorting the final results */
-object WordCountBetterSorted {
- 
-  /** Our main function where the action happens */
-  def main(args: Array[String]) {
-   
-    // Set the log level to only print errors
-    Logger.getLogger("org").setLevel(Level.ERROR)
-    
-     // Create a SparkContext using the local machine
-    val sc = new SparkContext("local", "WordCountBetterSorted")   
-    
-    // Load each line of my book into an RDD
-    val input = sc.textFile("data/book.txt")
-    
-    // Split using a regular expression that extracts words
-    val words = input.flatMap(x => x.split("\\W+"))
-    
-    // Normalize everything to lowercase
-    val lowercaseWords = words.map(x => x.toLowerCase())
-    
-    // Count of the occurrences of each word
-    val wordCounts = lowercaseWords.map(x => (x, 1)).reduceByKey( (x,y) => x + y )
-    
-    // Flip (word, count) tuples to (count, word) and then sort by key (the counts)
-    val wordCountsSorted = wordCounts.map( x => (x._2, x._1) ).sortByKey()
-    
-    // Print the results, flipping the (count, word) results to word: count as we go.
-    for (result <- wordCountsSorted) {
-      val count = result._1
-      val word = result._2
-      println(s"$word: $count")
-    }
-    
+import scala.math.max
+
+object BigSpender {
+
+  def parseLine(line: String): (Int, Float) = {
+        // Split by commas
+    val fields = line.split(",")
+        // Extract the customerID and amount spent in that transaction
+    val CustID = fields(0).toInt
+    val AmountSpent = fields(2).toFloat
+        // Create a tuple that is our result.
+    (CustID, AmountSpent)
   }
-  
+
+
+  def main(args: Array[String]) {
+
+///////////////////////////////////////////////////////////////////////////////
+
+   //  Pre-processing 
+
+///////////////////////////////////////////////////////////////////////////////
+
+        // Formatter for displaying currency results
+    val formatter = java.text.NumberFormat.getCurrencyInstance
+    
+        // Set the log level to only print errors
+    Logger.getLogger("org").setLevel(Level.ERROR)
+
+        // Create a SparkContext using every core of the local machine
+    val sc = new SparkContext("local[*]", "BigSpenderTBrown")
+
+        // Load each transaction into an RDD
+    val lines = sc.textFile("data/customer-orders.csv")
+
+        //  extract the customerID and amount spent in each transaction
+    val transactionList = lines.map(parseLine)
+
+        // use reduce function to total up all the spending per customerID
+    val CustomerTotals = transactionList.reduceByKey((x,y) => x + y )
+
+        // Swap columns to make the totals spent the key values to then sort by key
+    val sortedTotals = CustomerTotals.map(x => (x._2, x._1)).sortByKey()
+
+        // collect the sorted results
+    val results = sortedTotals.collect()
+
+///////////////////////////////////////////////////////////////////////////////
+
+    // print the total spending for every customer in order of amount spent
+        
+///////////////////////////////////////////////////////////////////////////////        
+
+    for (result <- results) {
+      val total = result._1
+      val custID = result._2
+      val formattedTotal = formatter.format(total)
+      println(s"Customer $custID spent a total amount of $formattedTotal")
+    }
+
+///////////////////////////////////////////////////////////////////////////////
+
+       // Find the big spender
+       
+///////////////////////////////////////////////////////////////////////////////
+
+    var maxTotal: Float = 0f
+    var ID : Int = 0
+
+    val rawResults = CustomerTotals.collect()
+
+    for (person <- rawResults) {
+       if (maxTotal <= person._2) {
+        maxTotal = person._2
+        ID = person._1
+      }
+    }
+    println(f"Customer $ID spent the most with a total amount of $maxTotal%.2f")
+
+///////////////////////////////////////////////////////////////////////////////
+
+      // Find customers who spent over certain amount 
+      
+///////////////////////////////////////////////////////////////////////////////      
+
+    val limit = 6000
+    val TopCustomers = CustomerTotals.filter(x => x._2 > limit).collect()
+    
+    for (person <- TopCustomers) {
+      val formattedLimit = formatter.format(limit)
+      val formattedTotal = formatter.format(person._2)
+      val CustID = person._1
+      println(f"Customer $CustID spent over $formattedLimit with a total amount of $formattedTotal")
+    }
+  }
 }
-```
