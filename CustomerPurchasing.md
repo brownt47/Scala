@@ -1,7 +1,7 @@
 # scala
 Various Scala and Spark Projects
 
-Project was to total the combined purchases of each customer.  Then sort by those totals.  I added a challenge of finding those with spendatures greater than $5,000
+Project was to total the combined purchases of each customer.  Then sort by those totals.  I added a challenge of finding those with expenditures greater than $5,000
 
 ```Scala
 
